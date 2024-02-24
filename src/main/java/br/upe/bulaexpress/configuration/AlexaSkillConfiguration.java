@@ -1,6 +1,6 @@
 package br.upe.bulaexpress.configuration;
 
-import br.upe.bulaexpress.ask.handlers.HelloWorldHandler;
+import br.upe.bulaexpress.ask.handlers.BeanRequestHandlerFactory;
 import com.amazon.ask.Skill;
 import com.amazon.ask.Skills;
 import com.amazon.ask.servlet.ServletConstants;
@@ -27,6 +27,12 @@ public class AlexaSkillConfiguration {
     @Value("${com.amazon.ask.verification.request-signature-check}")
     private Boolean checkRequestSignature;
 
+    BeanRequestHandlerFactory beanRequestHandlerFactory;
+
+    public AlexaSkillConfiguration(BeanRequestHandlerFactory beanRequestHandlerFactory) {
+        this.beanRequestHandlerFactory = beanRequestHandlerFactory;
+    }
+
     @Bean
     public List<SkillServletVerifier> getAlexaRequestVerifiers() {
         List<SkillServletVerifier> alexaRequestVerifiers = new ArrayList<>();
@@ -47,7 +53,7 @@ public class AlexaSkillConfiguration {
     @Bean
     public Skill getSkill() {
         return Skills.custom()
-                .addRequestHandlers(new HelloWorldHandler())
+                .addRequestHandlers(beanRequestHandlerFactory.getRequestHandlers())
                 .withSkillId(skillId)
                 .build();
     }
