@@ -15,4 +15,5 @@ public class Medicamento {
 
   @SerializedName("idBulaPacienteProtegido")
   private String token;
+
 }
