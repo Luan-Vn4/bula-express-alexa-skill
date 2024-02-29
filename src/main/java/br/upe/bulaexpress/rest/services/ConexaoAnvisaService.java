@@ -135,7 +135,7 @@ public class ConexaoAnvisaService {
       throw new ApiException("Ocorreu um erro ao baixar o arquivo da bula");
     }
 
-    File arquivo = new File(CAMINHO_DIRETORIO_BULAS + nomeMedicamento + ".pdf");
+    File arquivo = new File(CAMINHO_DIRETORIO_BULAS + "resultado" + ".pdf");
     FileOutputStream arquivoSaida = new FileOutputStream(arquivo);
     IOUtils.copy(response.body(), arquivoSaida);
   }
