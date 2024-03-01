@@ -1,9 +1,11 @@
 package br.upe.bulaexpress.datalayer.models.bula;
 
 import com.google.gson.annotations.SerializedName;
+import lombok.Getter;
 
 import java.util.List;
 
+@Getter
 public class Bula {
 
     @SerializedName("secoes")

@@ -92,7 +92,9 @@ public class BulaSectionExtractor {
             currentReadLine = buffer.readLine();
             currentLineIndex++;
             if (currentLineIndex < endBound && lastLineNotReached() && !currentLineMatchesSectionPattern()) {
+                if (!currentReadLine.isBlank()) {
                 sessionTextBuilder.append(currentReadLine).append("\n");
+                }
                 continue;
             }
             break;
@@ -172,7 +174,9 @@ public class BulaSectionExtractor {
                     isLinhaNext = false;
                 }
             }
-            return resultados;
+            return resultados.stream()
+                    .map(string -> string.substring(0, (int) (string.length() * 0.75)))
+                    .toList();
         }
     }
 
@@ -202,7 +206,7 @@ public class BulaSectionExtractor {
             String linhaLida;
 
             while ((linhaLida = reader.readLine()) != null) {
-                if (linhaLida.equals(rodape) || linhaLida.trim().length() == 1) {
+                if (linhaLida.toLowerCase().contains(rodape.toLowerCase()) || linhaLida.trim().length() == 1) {
                     writer.write("\n");
                 } else {
                     writer.write(linhaLida + "\n");
