@@ -17,7 +17,7 @@ public class LaunchHandler implements LaunchRequestHandler {
 
     @Override
     public Optional<Response> handle(HandlerInput input, LaunchRequest launchRequest) {
-        String responseText = "Olá, forneça as informações do remédio para que o BulaExpress possa ajudá-lo!";
+        String responseText = "Olá, forneça o nome do medicamente e seu fabricante para que o BulaExpress possa ajudá-lo!";
 
         return input.getResponseBuilder()
                 .withSpeech(responseText)
