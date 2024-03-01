@@ -1,8 +1,10 @@
 package br.upe.bulaexpress.utils;
 
+import br.upe.bulaexpress.datalayer.models.bula.Bula;
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.text.PDFTextStripper;
+import org.springframework.stereotype.Component;
 
 import java.io.*;
 import java.util.ArrayList;
@@ -10,6 +12,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+@Component
 public class BulaSectionExtractor {
 
     // Padrão: "x. <título da sessão>"
@@ -28,15 +31,19 @@ public class BulaSectionExtractor {
         return this.currentReadLine.matches(BULA_SECTION_PATTERN);
     }
 
-    public List<String> extract(String path) throws IOException{
+    public Bula extract(byte[] bytes) throws IOException {
+        return extract(Loader.loadPDF(bytes));
+    }
+
+    public Bula extract(String path) throws IOException{
         return extract(Loader.loadPDF(new File(path)));
     }
 
-    public List<String> extract(File file) throws IOException {
+    public Bula extract(File file) throws IOException {
         return extract(Loader.loadPDF(file));
     }
 
-    public List<String> extract(PDDocument pdfDocument) throws IOException{
+    public Bula extract(PDDocument pdfDocument) throws IOException{
         List<String> sections = new ArrayList<>();
 
         String text = getTextFromPDF(pdfDocument);
@@ -52,7 +59,6 @@ public class BulaSectionExtractor {
                 // Identifica se aquela(s) linha(s) apresenta(m) o padrão das seções de uma bula, para então guardar
                 // o título daquela seção como a key e extrair o texto daquela sessão como o valor associado
                 if (currentLineIndex > start && currentLineMatchesSectionPattern()) {
-                    System.out.println(currentLineIndex);
                     sections.add(extractSessionText(buffer, end));
 
                     // Este trecho impede que uma seção seja ignorada, caso a extração tenha parado por conta daquela
@@ -65,7 +71,7 @@ public class BulaSectionExtractor {
                 currentLineIndex++;
             }
 
-            return sections;
+            return new Bula(sections);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
