@@ -44,7 +44,8 @@ public class AnvisaBularioRestClient implements MedicamentoProvider {
 
     @Override
     public Medicamento getMedicamento(String nomeMedicamento, String fabricante) throws MedicamentoNotFound {
-        Medicamento medicamento = requestMedicamento(nomeMedicamento, fabricante);
+        String nomeFormatado = nomeMedicamento.toLowerCase().replace(" ", "%20");
+        Medicamento medicamento = requestMedicamento(nomeFormatado, fabricante);
         medicamento.setBula(getBulaFromMedicamentoToken(medicamento.getToken()));
         return medicamento;
     }
