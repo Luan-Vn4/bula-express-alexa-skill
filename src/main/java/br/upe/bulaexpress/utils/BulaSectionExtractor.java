@@ -15,6 +15,8 @@ import java.util.Map;
 @Component
 public class BulaSectionExtractor {
 
+    // ATRIBUTOS
+
     // Padrão: "x. <título da sessão>"
     // x - Dígito
     private static final String BULA_SECTION_PATTERN = "\\d\\. [^|.]* ?";
@@ -31,19 +33,21 @@ public class BulaSectionExtractor {
         return this.currentReadLine.matches(BULA_SECTION_PATTERN);
     }
 
-    public Bula extract(byte[] bytes) throws IOException {
+    // MÉTODOS DE EXTRAÇÃO
+
+    public synchronized Bula extract(byte[] bytes) throws IOException {
         return extract(Loader.loadPDF(bytes));
     }
 
-    public Bula extract(String path) throws IOException{
+    public synchronized Bula extract(String path) throws IOException{
         return extract(Loader.loadPDF(new File(path)));
     }
 
-    public Bula extract(File file) throws IOException {
+    public synchronized Bula extract(File file) throws IOException {
         return extract(Loader.loadPDF(file));
     }
 
-    public Bula extract(PDDocument pdfDocument) throws IOException{
+    public synchronized Bula extract(PDDocument pdfDocument) throws IOException{
         List<String> sections = new ArrayList<>();
 
         String text = getTextFromPDF(pdfDocument);
@@ -51,15 +55,15 @@ public class BulaSectionExtractor {
         String textWithoutFooter = getPdfTextWithoutFooters(text);
 
         int[] boundaries = searchBulaContentBoundaries(textWithoutFooter);
-        int start = boundaries[0];
-        int end = boundaries[1];
+        int startBound = boundaries[0];
+        int endBound = boundaries[1];
 
         try (BufferedReader buffer = new BufferedReader(new StringReader(textWithoutFooter))) {
-            while (currentLineIndex < end && lastLineNotReached() && sections.size() < 9) {
+            while (this.currentLineIndex < endBound && lastLineNotReached() && sections.size() < 9) {
                 // Identifica se aquela(s) linha(s) apresenta(m) o padrão das seções de uma bula, para então guardar
                 // o título daquela seção como a key e extrair o texto daquela sessão como o valor associado
-                if (currentLineIndex > start && currentLineMatchesSectionPattern()) {
-                    sections.add(extractSessionText(buffer, end));
+                if (this.currentLineIndex > startBound && currentLineMatchesSectionPattern()) {
+                    sections.add(extractSessionText(buffer, endBound));
 
                     // Este trecho impede que uma seção seja ignorada, caso a extração tenha parado por conta daquela
                     // ter sido alcançada
@@ -67,14 +71,17 @@ public class BulaSectionExtractor {
                         continue;
                     }
                 }
-                currentReadLine = buffer.readLine();
-                currentLineIndex++;
+                this.currentReadLine = buffer.readLine();
+                this.currentLineIndex++;
             }
 
             return new Bula(sections);
         } catch (IOException e) {
             throw new RuntimeException(e);
+        } finally {
+            this.redefineAuxiliaryFields();
         }
+
     }
 
     private String getTextFromPDF(PDDocument pdfDocument) {
@@ -89,11 +96,11 @@ public class BulaSectionExtractor {
         StringBuilder sessionTextBuilder = new StringBuilder();
 
         while (true) {
-            currentReadLine = buffer.readLine();
-            currentLineIndex++;
-            if (currentLineIndex < endBound && lastLineNotReached() && !currentLineMatchesSectionPattern()) {
-                if (!currentReadLine.isBlank()) {
-                sessionTextBuilder.append(currentReadLine).append("\n");
+            this.currentReadLine = buffer.readLine();
+            this.currentLineIndex++;
+            if (this.currentLineIndex < endBound && lastLineNotReached() && !currentLineMatchesSectionPattern()) {
+                if (!this.currentReadLine.isBlank()) {
+                sessionTextBuilder.append(this.currentReadLine).append("\n");
                 }
                 continue;
             }
@@ -103,7 +110,7 @@ public class BulaSectionExtractor {
         return sessionTextBuilder.toString();
     }
 
-        private static int[] searchBulaContentBoundaries(String text) throws IOException {
+    private static int[] searchBulaContentBoundaries(String text) throws IOException {
         int inicio = searchLineIndex(text, "informações ao paciente");
         int fim = searchLineIndex(text, "dizeres legais");
         return new int[] {inicio, fim};
@@ -214,6 +221,11 @@ public class BulaSectionExtractor {
             }
         }
         return writer.toString();
+    }
+
+    private void redefineAuxiliaryFields() {
+        this.currentReadLine = "";
+        this.currentLineIndex = 0;
     }
 
 }
