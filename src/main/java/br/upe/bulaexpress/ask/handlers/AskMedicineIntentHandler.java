@@ -2,7 +2,8 @@ package br.upe.bulaexpress.ask.handlers;
 
 import br.upe.bulaexpress.datalayer.apis.anvisa.MedicamentoProvider;
 import br.upe.bulaexpress.datalayer.models.Medicamento;
-import br.upe.bulaexpress.exceptions.api.anvisa.MedicamentoNotFound;
+import br.upe.bulaexpress.exceptions.apis.anvisa.MedicamentoNotFound;
+import br.upe.bulaexpress.exceptions.requests.RequestException;
 import com.amazon.ask.dispatcher.request.handler.HandlerInput;
 import com.amazon.ask.dispatcher.request.handler.impl.IntentRequestHandler;
 import com.amazon.ask.model.IntentRequest;
@@ -11,7 +12,6 @@ import com.amazon.ask.request.RequestHelper;
 import com.amazon.ask.response.ResponseBuilder;
 import org.springframework.stereotype.Component;
 
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 
@@ -50,11 +50,11 @@ public class AskMedicineIntentHandler implements IntentRequestHandler {
         String medicine = requestHelper.getSlotValue("medicine").get();
         String company = requestHelper.getSlotValue("company").get();
 
-        Medicamento medicamento = new Medicamento();
+        Medicamento medicamento;
         try {
             medicamento = medicamentoProvider.getMedicamento(medicine, company);
-        } catch (MedicamentoNotFound e) {
-            responseBuilder
+        } catch (MedicamentoNotFound | RequestException e) {
+            return responseBuilder
                     .withSpeech("Não foi possível encontrar o medicamento")
                     .build();
         }
@@ -64,7 +64,6 @@ public class AskMedicineIntentHandler implements IntentRequestHandler {
 
         return responseBuilder
                 .withSpeech("O que você deseja saber sobre o medicamento " + medicamento.getNome())
-                .addDelegateDirective(intentRequest.getIntent())
                 .build();
     }
 }
