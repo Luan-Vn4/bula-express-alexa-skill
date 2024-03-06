@@ -2,12 +2,14 @@ package br.upe.bulaexpress.datalayer.apis.anvisa;
 
 import br.upe.bulaexpress.datalayer.models.Medicamento;
 import br.upe.bulaexpress.datalayer.models.bula.Bula;
-import br.upe.bulaexpress.exceptions.api.anvisa.MedicamentoNotFound;
-import br.upe.bulaexpress.exceptions.api.requests.*;
+import br.upe.bulaexpress.exceptions.apis.anvisa.MedicamentoNotFound;
+import br.upe.bulaexpress.exceptions.requests.*;
 import br.upe.bulaexpress.utils.BulaSectionExtractor;
 import com.google.gson.*;
 import lombok.extern.log4j.Log4j2;
 import org.apache.pdfbox.Loader;
+import org.springframework.retry.RetryCallback;
+import org.springframework.retry.support.RetryTemplate;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
@@ -28,6 +30,8 @@ public class AnvisaBularioRestClient implements MedicamentoProvider {
 
     private final BulaSectionExtractor bulaSectionExtractor;
 
+    private final RetryTemplate retryTemplate;
+
     private static final String URL_CONSULTA_API =
             "https://consultas.anvisa.gov.br/api/consulta/"
                     + "bulario?count=50&filter%5BnomeProduto%5D={nome}&page={pagina}";
@@ -36,18 +40,22 @@ public class AnvisaBularioRestClient implements MedicamentoProvider {
 
     // Métodos de acesso
 
-    public AnvisaBularioRestClient(BulaSectionExtractor bulaSectionExtractor) {
+    public AnvisaBularioRestClient(BulaSectionExtractor bulaSectionExtractor, RetryTemplate retryTemplate) {
         this.bulaSectionExtractor = bulaSectionExtractor;
+        this.retryTemplate = retryTemplate;
     }
 
     // Operações
 
     @Override
-    public Medicamento getMedicamento(String nomeMedicamento, String fabricante) throws MedicamentoNotFound {
+    public Medicamento getMedicamento(String nomeMedicamento, String fabricante) throws MedicamentoNotFound, RequestException {
         String nomeFormatado = nomeMedicamento.toLowerCase().replace(" ", "%20");
-        Medicamento medicamento = requestMedicamento(nomeFormatado, fabricante);
-        medicamento.setBula(getBulaFromMedicamentoToken(medicamento.getToken()));
-        return medicamento;
+
+        return retryTemplate.execute(((RetryCallback<Medicamento, RequestException>) context -> {
+            Medicamento medicamento = requestMedicamento(nomeFormatado, fabricante);
+            medicamento.setBula(getBulaFromMedicamentoToken(medicamento.getToken()));
+            return medicamento;
+        }));
     }
 
     private static Medicamento requestMedicamento(String nomeMedicamento, String fabricante) {
@@ -166,15 +174,13 @@ public class AnvisaBularioRestClient implements MedicamentoProvider {
 
     private Bula getBulaFromMedicamentoToken(String token) {
         HttpRequest request = HttpRequest.newBuilder().uri(URI.create(gerarLinkPdf(token))).build();
-
         HttpResponse<InputStream> response = sendResquest(request, HttpResponse.BodyHandlers.ofInputStream());
 
         if (response.statusCode() != 200) {
             String message = "Ocorreu um erro ao baixar o arquivo da bula " + response.statusCode();
-            log.warn(message, new RequestException());
+            log.warn(message, new RequestException(message));
             throw new RequestException(message);
         }
-
         try (InputStream responseBodyInputStream = response.body()){
             return bulaSectionExtractor.extract(Loader.loadPDF(responseBodyInputStream.readAllBytes()));
         } catch (IOException e) {

@@ -1,4 +1,4 @@
-package br.upe.bulaexpress.exceptions.api.anvisa;
+package br.upe.bulaexpress.exceptions.apis.anvisa;
 
 public class MedicamentoNotFound extends RuntimeException {
 
