@@ -11,209 +11,240 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Component
 public class BulaSectionExtractor {
 
-    // Padrão: "x. <título da sessão>"
-    // x - Dígito
-    private static final String BULA_SECTION_PATTERN = "\\d\\. [^|.]* ?";
+  // Padrão: "x. <título da sessão>"
+  // x - Dígito
+  private static final String BULA_SECTION_PATTERN = "\\d\\. [^|.]* ?";
 
-    private String currentReadLine = "";
+  private String currentReadLine = "";
 
-    private int currentLineIndex = 0;
+  private int currentLineIndex = 0;
 
-    private boolean lastLineNotReached() {
-        return this.currentReadLine != null;
-    }
+  private boolean lastLineNotReached() {
+    return this.currentReadLine != null;
+  }
 
-    private boolean currentLineMatchesSectionPattern() {
-        return this.currentReadLine.matches(BULA_SECTION_PATTERN);
-    }
+  private boolean currentLineMatchesSectionPattern() {
+    return this.currentReadLine.matches(BULA_SECTION_PATTERN);
+  }
 
-    public Bula extract(byte[] bytes) throws IOException {
-        return extract(Loader.loadPDF(bytes));
-    }
+  public Bula extract(byte[] bytes) throws IOException {
+    return extract(Loader.loadPDF(bytes));
+  }
 
-    public Bula extract(String path) throws IOException{
-        return extract(Loader.loadPDF(new File(path)));
-    }
+  public Bula extract(String path) throws IOException {
+    return extract(Loader.loadPDF(new File(path)));
+  }
 
-    public Bula extract(File file) throws IOException {
-        return extract(Loader.loadPDF(file));
-    }
+  public Bula extract(File file) throws IOException {
+    return extract(Loader.loadPDF(file));
+  }
 
-    public Bula extract(PDDocument pdfDocument) throws IOException{
-        List<String> sections = new ArrayList<>();
+  public Bula extract(PDDocument pdfDocument) throws IOException {
+    List<String> sections = new ArrayList<>();
 
-        String text = getTextFromPDF(pdfDocument);
+    String text = getTextFromPDF(pdfDocument);
 
-        String textWithoutFooter = getPdfTextWithoutFooters(text);
+    String textWithoutFooter = getPdfTextWithoutFooters(text);
 
-        int[] boundaries = searchBulaContentBoundaries(textWithoutFooter);
-        int start = boundaries[0];
-        int end = boundaries[1];
+    int[] boundaries = searchBulaContentBoundaries(textWithoutFooter);
+    int start = boundaries[0];
+    int end = boundaries[1];
 
-        try (BufferedReader buffer = new BufferedReader(new StringReader(textWithoutFooter))) {
-            while (currentLineIndex < end && lastLineNotReached() && sections.size() < 9) {
-                // Identifica se aquela(s) linha(s) apresenta(m) o padrão das seções de uma bula, para então guardar
-                // o título daquela seção como a key e extrair o texto daquela sessão como o valor associado
-                if (currentLineIndex > start && currentLineMatchesSectionPattern()) {
-                    sections.add(extractSessionText(buffer, end));
+    try (BufferedReader buffer = new BufferedReader(new StringReader(textWithoutFooter))) {
+      while (currentLineIndex < end && lastLineNotReached() && sections.size() < 9) {
+        // Identifica se aquela(s) linha(s) apresenta(m) o padrão das seções de uma bula, para então
+        // guardar
+        // o título daquela seção como a key e extrair o texto daquela sessão como o valor associado
+        if (currentLineIndex > start && currentLineMatchesSectionPattern()) {
+          sections.add(extractSessionText(buffer, end));
 
-                    // Este trecho impede que uma seção seja ignorada, caso a extração tenha parado por conta daquela
-                    // ter sido alcançada
-                    if (lastLineNotReached() && currentLineMatchesSectionPattern()) {
-                        continue;
-                    }
-                }
-                currentReadLine = buffer.readLine();
-                currentLineIndex++;
-            }
-
-            return new Bula(sections);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
+          // Este trecho impede que uma seção seja ignorada, caso a extração tenha parado por conta
+          // daquela
+          // ter sido alcançada
+          if (lastLineNotReached() && currentLineMatchesSectionPattern()) {
+            continue;
+          }
         }
-    }
+        currentReadLine = buffer.readLine();
+        currentLineIndex++;
+      }
 
-    private String getTextFromPDF(PDDocument pdfDocument) {
-        try {
-            return new PDFTextStripper().getText(pdfDocument);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
+      String composition = extractComposition(pdfDocument);
+      sections.add(composition);
+
+      return new Bula(sections);
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  private String extractComposition(PDDocument document) throws IOException {
+    PDFTextStripper textStripper = new PDFTextStripper();
+    textStripper.setStartPage(1);
+    textStripper.setEndPage(1);
+
+    String firstPage = textStripper.getText(document);
+    String regex = "[a-zA-Z]*\\s?\\d+(,\\d+)*\\s?[a-zA-Z/]+";
+
+    return findComposition(firstPage, regex);
+  }
+
+  private static String findComposition(String text, String regex) {
+    Pattern pattern = Pattern.compile(regex);
+    Matcher matcher = pattern.matcher(text);
+
+    if (matcher.find()) {
+      return matcher.group();
+    } else {
+      return "";
+    }
+  }
+
+  public static String getTextFromPDF(PDDocument pdfDocument) {
+    try {
+      return new PDFTextStripper().getText(pdfDocument);
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  private String extractSessionText(BufferedReader buffer, int endBound) throws IOException {
+    StringBuilder sessionTextBuilder = new StringBuilder();
+
+    while (true) {
+      currentReadLine = buffer.readLine();
+      currentLineIndex++;
+      if (currentLineIndex < endBound
+          && lastLineNotReached()
+          && !currentLineMatchesSectionPattern()) {
+        if (!currentReadLine.isBlank()) {
+          sessionTextBuilder.append(currentReadLine).append("\n");
         }
+        continue;
+      }
+      break;
     }
 
-    private String extractSessionText(BufferedReader buffer, int endBound) throws IOException {
-        StringBuilder sessionTextBuilder = new StringBuilder();
+    return sessionTextBuilder.toString();
+  }
 
-        while (true) {
-            currentReadLine = buffer.readLine();
-            currentLineIndex++;
-            if (currentLineIndex < endBound && lastLineNotReached() && !currentLineMatchesSectionPattern()) {
-                if (!currentReadLine.isBlank()) {
-                sessionTextBuilder.append(currentReadLine).append("\n");
-                }
-                continue;
-            }
-            break;
+  private static int[] searchBulaContentBoundaries(String text) throws IOException {
+    int inicio = searchLineIndex(text, "informações ao paciente");
+    int fim = searchLineIndex(text, "dizeres legais");
+    return new int[] {inicio, fim};
+  }
+
+  private static int searchLineIndex(String text, String trechoBuscado) throws IOException {
+    try (BufferedReader buffer = new BufferedReader(new StringReader(text))) {
+
+      String linhaLida;
+      int numeroLinha = 0;
+      boolean textoEncontrado = false;
+
+      while ((linhaLida = buffer.readLine()) != null) {
+        numeroLinha++;
+
+        if (linhaLida.toLowerCase().contains(trechoBuscado)) {
+          textoEncontrado = true;
+          break;
         }
+      }
 
-        return sessionTextBuilder.toString();
+      if (textoEncontrado) {
+        return numeroLinha;
+      } else {
+        return -1;
+      }
     }
+  }
 
-        private static int[] searchBulaContentBoundaries(String text) throws IOException {
-        int inicio = searchLineIndex(text, "informações ao paciente");
-        int fim = searchLineIndex(text, "dizeres legais");
-        return new int[] {inicio, fim};
-    }
+  private static String getPdfTextWithoutFooters(String text) throws IOException {
+    List<String> possibleFooters = buscarRodapes(text);
+    String footer = identificarRodape(possibleFooters);
 
-    private static int searchLineIndex(String text, String trechoBuscado) throws IOException {
-        try (BufferedReader buffer = new BufferedReader(new StringReader(text))) {
+    return substituir(text, footer);
+  }
 
-            String linhaLida;
-            int numeroLinha = 0;
-            boolean textoEncontrado = false;
+  private static List<String> buscarRodapes(String text) throws IOException {
+    try (BufferedReader bufferedReader = new BufferedReader(new StringReader(text))) {
+      String linhaLida;
+      List<String> resultados = new ArrayList<>();
 
-            while ((linhaLida = buffer.readLine()) != null) {
-                numeroLinha++;
+      String linhaTeste = null;
+      boolean isBranco = false;
+      boolean isLinhaNext = false;
 
-                if (linhaLida.toLowerCase().contains(trechoBuscado)) {
-                    textoEncontrado = true;
-                    break;
-                }
-            }
+      while ((linhaLida = bufferedReader.readLine()) != null) {
+        if (linhaLida.trim().isEmpty() || linhaLida.trim().length() == 1) {
+          if (isBranco && isLinhaNext) {
+            resultados.add(linhaTeste);
+          }
 
-            if (textoEncontrado) {
-                return numeroLinha;
-            } else {
-                return -1;
-            }
+          isBranco = true;
+          isLinhaNext = false;
+        } else {
+          if (isBranco && isLinhaNext) {
+            isBranco = false;
+            isLinhaNext = false;
+            continue;
+          }
+
+          if (isBranco) {
+            linhaTeste = linhaLida;
+            isLinhaNext = true;
+            continue;
+          }
+
+          isBranco = false;
+          isLinhaNext = false;
         }
+      }
+      return resultados.stream()
+          .map(string -> string.substring(0, (int) (string.length() * 0.75)))
+          .toList();
+    }
+  }
+
+  private static String identificarRodape(List<String> lista) {
+    Map<String, Integer> contador = new HashMap<>();
+
+    for (String elemento : lista) {
+      contador.put(elemento, contador.getOrDefault(elemento, 0) + 1);
     }
 
-    private static String getPdfTextWithoutFooters(String text) throws IOException {
-        List<String> possibleFooters = buscarRodapes(text);
-        String footer = identificarRodape(possibleFooters);
-
-        return substituir(text, footer);
+    String elementoMaisRepetido = null;
+    int frequenciaMaxima = 0;
+    for (Map.Entry<String, Integer> entry : contador.entrySet()) {
+      if (entry.getValue() > frequenciaMaxima) {
+        elementoMaisRepetido = entry.getKey();
+        frequenciaMaxima = entry.getValue();
+      }
     }
 
-    private static List<String> buscarRodapes(String text) throws IOException {
-        try (BufferedReader bufferedReader = new BufferedReader(new StringReader(text))) {
-            String linhaLida;
-            List<String> resultados = new ArrayList<>();
+    return elementoMaisRepetido;
+  }
 
-            String linhaTeste = null;
-            boolean isBranco = false;
-            boolean isLinhaNext = false;
+  private static String substituir(String text, String rodape) throws IOException {
+    StringWriter writer = new StringWriter();
+    try (BufferedReader reader = new BufferedReader(new StringReader(text))) {
 
-            while ((linhaLida = bufferedReader.readLine()) != null) {
-                if (linhaLida.trim().isEmpty() || linhaLida.trim().length() == 1) {
-                    if (isBranco && isLinhaNext) {
-                        resultados.add(linhaTeste);
-                    }
+      String linhaLida;
 
-                    isBranco = true;
-                    isLinhaNext = false;
-                } else {
-                    if (isBranco && isLinhaNext) {
-                        isBranco = false;
-                        isLinhaNext = false;
-                        continue;
-                    }
-
-                    if (isBranco) {
-                        linhaTeste = linhaLida;
-                        isLinhaNext = true;
-                        continue;
-                    }
-
-                    isBranco = false;
-                    isLinhaNext = false;
-                }
-            }
-            return resultados.stream()
-                    .map(string -> string.substring(0, (int) (string.length() * 0.75)))
-                    .toList();
+      while ((linhaLida = reader.readLine()) != null) {
+        if (linhaLida.toLowerCase().contains(rodape.toLowerCase())
+            || linhaLida.trim().length() == 1) {
+          writer.write("\n");
+        } else {
+          writer.write(linhaLida + "\n");
         }
+      }
     }
-
-    private static String identificarRodape(List<String> lista) {
-        Map<String, Integer> contador = new HashMap<>();
-
-        for (String elemento : lista) {
-            contador.put(elemento, contador.getOrDefault(elemento, 0) + 1);
-        }
-
-        String elementoMaisRepetido = null;
-        int frequenciaMaxima = 0;
-        for (Map.Entry<String, Integer> entry : contador.entrySet()) {
-            if (entry.getValue() > frequenciaMaxima) {
-                elementoMaisRepetido = entry.getKey();
-                frequenciaMaxima = entry.getValue();
-            }
-        }
-
-        return elementoMaisRepetido;
-    }
-
-    private static String substituir(String text, String rodape) throws IOException {
-        StringWriter writer = new StringWriter();
-        try (BufferedReader reader = new BufferedReader(new StringReader(text))) {
-
-            String linhaLida;
-
-            while ((linhaLida = reader.readLine()) != null) {
-                if (linhaLida.toLowerCase().contains(rodape.toLowerCase()) || linhaLida.trim().length() == 1) {
-                    writer.write("\n");
-                } else {
-                    writer.write(linhaLida + "\n");
-                }
-            }
-        }
-        return writer.toString();
-    }
-
+    return writer.toString();
+  }
 }
