@@ -12,7 +12,8 @@ public enum SecaoBula {
     COMO_UTILIZAR(5),
     OQUE_FAZER_ESQUECIMENTO(6),
     QUAIS_MALES(7),
-    QUANTIDADE_MAIOR_QUE_INDICADA(8);
+    QUANTIDADE_MAIOR_QUE_INDICADA(8),
+    COMPOSICAO(9);
 
     private final int sectionNumber;
 

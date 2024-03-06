@@ -5,12 +5,13 @@ import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.text.PDFTextStripper;
 import org.springframework.stereotype.Component;
-
 import java.io.*;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Component
 public class BulaSectionExtractor {
@@ -20,9 +21,7 @@ public class BulaSectionExtractor {
     // Padrão: "x. <título da sessão>"
     // x - Dígito
     private static final String BULA_SECTION_PATTERN = "\\d\\. [^|.]* ?";
-
     private String currentReadLine = "";
-
     private int currentLineIndex = 0;
 
     private boolean lastLineNotReached() {
@@ -75,16 +74,17 @@ public class BulaSectionExtractor {
                 this.currentLineIndex++;
             }
 
+            sections.add(extractComposition(pdfDocument));
+
             return new Bula(sections);
         } catch (IOException e) {
             throw new RuntimeException(e);
         } finally {
             this.redefineAuxiliaryFields();
         }
-
     }
 
-    private String getTextFromPDF(PDDocument pdfDocument) {
+    public static String getTextFromPDF(PDDocument pdfDocument) {
         try {
             return new PDFTextStripper().getText(pdfDocument);
         } catch (IOException e) {
@@ -100,13 +100,12 @@ public class BulaSectionExtractor {
             this.currentLineIndex++;
             if (this.currentLineIndex < endBound && lastLineNotReached() && !currentLineMatchesSectionPattern()) {
                 if (!this.currentReadLine.isBlank()) {
-                sessionTextBuilder.append(this.currentReadLine).append("\n");
+                  sessionTextBuilder.append(this.currentReadLine).append("\n");
                 }
-                continue;
+              continue;
             }
             break;
         }
-
         return sessionTextBuilder.toString();
     }
 
@@ -118,14 +117,12 @@ public class BulaSectionExtractor {
 
     private static int searchLineIndex(String text, String trechoBuscado) throws IOException {
         try (BufferedReader buffer = new BufferedReader(new StringReader(text))) {
-
             String linhaLida;
             int numeroLinha = 0;
             boolean textoEncontrado = false;
 
             while ((linhaLida = buffer.readLine()) != null) {
                 numeroLinha++;
-
                 if (linhaLida.toLowerCase().contains(trechoBuscado)) {
                     textoEncontrado = true;
                     break;
@@ -143,7 +140,6 @@ public class BulaSectionExtractor {
     private static String getPdfTextWithoutFooters(String text) throws IOException {
         List<String> possibleFooters = buscarRodapes(text);
         String footer = identificarRodape(possibleFooters);
-
         return substituir(text, footer);
     }
 
@@ -159,26 +155,23 @@ public class BulaSectionExtractor {
             while ((linhaLida = bufferedReader.readLine()) != null) {
                 if (linhaLida.trim().isEmpty() || linhaLida.trim().length() == 1) {
                     if (isBranco && isLinhaNext) {
-                        resultados.add(linhaTeste);
+                    resultados.add(linhaTeste);
                     }
 
                     isBranco = true;
                     isLinhaNext = false;
                 } else {
                     if (isBranco && isLinhaNext) {
-                        isBranco = false;
-                        isLinhaNext = false;
-                        continue;
+                    isBranco = false;
+                    isLinhaNext = false;
+                    continue;
                     }
 
                     if (isBranco) {
                         linhaTeste = linhaLida;
                         isLinhaNext = true;
-                        continue;
                     }
 
-                    isBranco = false;
-                    isLinhaNext = false;
                 }
             }
             return resultados.stream()
@@ -221,6 +214,28 @@ public class BulaSectionExtractor {
             }
         }
         return writer.toString();
+    }
+
+    private String extractComposition(PDDocument document) throws IOException {
+        PDFTextStripper textStripper = new PDFTextStripper();
+        textStripper.setStartPage(1);
+        textStripper.setEndPage(1);
+
+        String firstPage = textStripper.getText(document);
+        String regex = "[a-zA-Z]*\\s?\\d+(,\\d+)*\\s?[a-zA-Z/]+";
+
+        return findComposition(firstPage, regex);
+    }
+
+    private static String findComposition(String text, String regex) {
+        Pattern pattern = Pattern.compile(regex);
+        Matcher matcher = pattern.matcher(text);
+
+        if (matcher.find()) {
+            return matcher.group();
+        } else {
+            return "";
+        }
     }
 
     private void redefineAuxiliaryFields() {
