@@ -1,12 +1,9 @@
 package br.upe.bulaexpress.configuration;
 
-import br.upe.bulaexpress.ask.handlers.BeanRequestHandlerFactory;
+import br.upe.bulaexpress.ask.handlers.factories.BeanRequestHandlerFactory;
 import com.amazon.ask.Skill;
 import com.amazon.ask.Skills;
-import com.amazon.ask.servlet.ServletConstants;
-import com.amazon.ask.servlet.util.ServletUtils;
 import com.amazon.ask.servlet.verifiers.SkillRequestSignatureVerifier;
-import com.amazon.ask.servlet.verifiers.SkillRequestTimestampVerifier;
 import com.amazon.ask.servlet.verifiers.SkillServletVerifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -41,11 +38,11 @@ public class AlexaSkillConfiguration {
             alexaRequestVerifiers.add(new SkillRequestSignatureVerifier());
         }
 
-        if (ServletUtils.getTimeStampToleranceSystemProperty() == null) {
+        /*if (ServletUtils.getTimeStampToleranceSystemProperty() == null) {
             alexaRequestVerifiers.add(new SkillRequestTimestampVerifier(ServletConstants.DEFAULT_TOLERANCE_MILLIS));
         } else {
             alexaRequestVerifiers.add(new SkillRequestTimestampVerifier(millisTimeStampTolerance));
-        }
+        }*/
 
         return alexaRequestVerifiers;
     }

@@ -1,4 +1,4 @@
-package br.upe.bulaexpress.exceptions.api.requests;
+package br.upe.bulaexpress.exceptions.requests;
 
 public class RequestException extends RuntimeException {
 

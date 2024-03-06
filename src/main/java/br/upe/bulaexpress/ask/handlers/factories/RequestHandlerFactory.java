@@ -1,4 +1,4 @@
-package br.upe.bulaexpress.ask.handlers;
+package br.upe.bulaexpress.ask.handlers.factories;
 
 import com.amazon.ask.dispatcher.request.handler.RequestHandler;
 
